@@ -216,6 +216,12 @@ impl App {
         }
     }
 
+    pub fn check_and_play_next(&mut self) {
+        if self.player.is_finished() {
+            self.next_track();
+        }
+    }
+
     pub fn previous_track(&mut self) {
         if let Some(track) = self.queue.previous() {
             let _ = self.player.play(&track.path, Some(track.duration));

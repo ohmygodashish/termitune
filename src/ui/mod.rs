@@ -102,6 +102,8 @@ fn run_app<B: ratatui::backend::Backend>(
                 }
             }
         }
+
+        app.check_and_play_next();
     }
 
     Ok(())
