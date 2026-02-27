@@ -32,8 +32,10 @@ pub fn render_player(app: &App, frame: &mut Frame, area: Rect) {
 
     let progress_bar = if let (Some(elapsed), Some(total)) = (elapsed, duration) {
         if total.as_secs() > 0 {
-            let _percent = ((elapsed.as_secs() as f64 / total.as_secs() as f64) * 100.0) as u16;
-            let elapsed_str = format_time(elapsed);
+            let elapsed_capped = if elapsed > total { total } else { elapsed };
+            let _percent =
+                ((elapsed_capped.as_secs() as f64 / total.as_secs() as f64) * 100.0) as u16;
+            let elapsed_str = format_time(elapsed_capped);
             let total_str = format_time(total);
             format!("[{} / {}]", elapsed_str, total_str)
         } else {
@@ -45,7 +47,8 @@ pub fn render_player(app: &App, frame: &mut Frame, area: Rect) {
 
     let progress_percent = if let (Some(elapsed), Some(total)) = (elapsed, duration) {
         if total.as_secs() > 0 {
-            ((elapsed.as_secs() as f64 / total.as_secs() as f64) * 100.0).min(100.0) as u16
+            let elapsed_capped = if elapsed > total { total } else { elapsed };
+            ((elapsed_capped.as_secs() as f64 / total.as_secs() as f64) * 100.0).min(100.0) as u16
         } else {
             0
         }
