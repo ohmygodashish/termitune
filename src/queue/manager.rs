@@ -31,10 +31,9 @@ impl QueueManager {
         }
     }
 
-    #[allow(dead_code)]
     pub fn remove(&mut self, index: usize) -> Option<TrackMetadata> {
         if index < self.queue.len() {
-            let track = self.queue.remove(index).unwrap();
+            let track = self.queue.remove(index)?;
 
             if let Some(current) = self.current_index {
                 if index < current {
@@ -56,7 +55,7 @@ impl QueueManager {
         self.current_index = None;
     }
 
-    pub fn next(&mut self) -> Option<&TrackMetadata> {
+    pub fn next_track(&mut self) -> Option<&TrackMetadata> {
         if let Some(current) = self.current_index {
             let next_index = current + 1;
             if next_index < self.queue.len() {
