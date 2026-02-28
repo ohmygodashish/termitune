@@ -1,7 +1,6 @@
 use lofty::file::AudioFile;
 use lofty::prelude::*;
-use log::info;
-use std::path::PathBuf;
+use std::path::Path;
 use std::time::Duration;
 
 #[derive(Debug, Clone)]
@@ -11,11 +10,11 @@ pub struct TrackMetadata {
     #[allow(dead_code)]
     pub album: String,
     pub duration: Duration,
-    pub path: PathBuf,
+    pub path: std::path::PathBuf,
 }
 
 impl TrackMetadata {
-    pub fn from_path(path: &PathBuf) -> Option<Self> {
+    pub fn from_path(path: &Path) -> Option<Self> {
         match lofty::read_from_path(path) {
             Ok(tagged_file) => {
                 let properties = tagged_file.properties();
@@ -46,19 +45,10 @@ impl TrackMetadata {
                     artist,
                     album,
                     duration,
-                    path: path.clone(),
+                    path: path.to_path_buf(),
                 })
             }
-            Err(e) => {
-                info!("Could not read metadata for {:?}: {}", path, e);
-                Some(Self {
-                    title: path.file_stem()?.to_string_lossy().to_string(),
-                    artist: "Unknown Artist".to_string(),
-                    album: "Unknown Album".to_string(),
-                    duration: Duration::ZERO,
-                    path: path.clone(),
-                })
-            }
+            Err(_) => None,
         }
     }
 
@@ -70,7 +60,7 @@ impl TrackMetadata {
     }
 }
 
-pub fn is_audio_file(path: &PathBuf) -> bool {
+pub fn is_audio_file(path: &Path) -> bool {
     if let Some(ext) = path.extension() {
         let ext = ext.to_string_lossy().to_lowercase();
         matches!(
