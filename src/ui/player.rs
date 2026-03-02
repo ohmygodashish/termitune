@@ -10,8 +10,8 @@ pub fn render_player(app: &App, frame: &mut Frame, area: Rect) {
 
     let current_track = app.queue.current();
 
-    let title = if let Some(track) = current_track {
-        format!("{} - {}", track.artist, track.title)
+    let title = if let Some(queued) = current_track {
+        format!("{} - {}", queued.track.artist, queued.track.title)
     } else {
         "No track playing".to_string()
     };
