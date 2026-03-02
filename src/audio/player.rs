@@ -59,6 +59,7 @@ pub struct AudioPlayer {
     playback_start: Option<Instant>,
     pause_start_time: Option<Instant>,
     total_paused_duration: Duration,
+    has_played: bool,
 }
 
 impl AudioPlayer {
@@ -75,6 +76,7 @@ impl AudioPlayer {
             playback_start: None,
             pause_start_time: None,
             total_paused_duration: Duration::ZERO,
+            has_played: false,
         })
     }
 
@@ -92,6 +94,7 @@ impl AudioPlayer {
         self.playback_start = Some(Instant::now());
         self.pause_start_time = None;
         self.total_paused_duration = Duration::ZERO;
+        self.has_played = true;
 
         Ok(())
     }
@@ -119,6 +122,7 @@ impl AudioPlayer {
         self.total_paused_duration = Duration::ZERO;
         self.current_track = None;
         self.current_duration = None;
+        self.has_played = false;
     }
 
     pub fn is_playing(&self) -> bool {
@@ -130,7 +134,7 @@ impl AudioPlayer {
     }
 
     pub fn is_finished(&self) -> bool {
-        self.sink.empty() && !self.is_playing() && self.current_track.is_none()
+        self.has_played && self.sink.empty() && !self.is_playing()
     }
 
     #[allow(dead_code)]
