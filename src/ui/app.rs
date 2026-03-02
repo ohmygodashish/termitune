@@ -176,9 +176,25 @@ impl App {
                     if let Some(metadata) = TrackMetadata::from_path(&path) {
                         self.player.stop();
                         self.queue.clear();
-                        self.queue.add(metadata);
-                        if let Some(track) = self.queue.current() {
-                            let _ = self.player.play(&track.path, Some(track.duration));
+
+                        let selected_idx = self.selected_index;
+
+                        let mut remaining_songs: Vec<TrackMetadata> = Vec::new();
+                        for i in (selected_idx + 1)..self.entries.len() {
+                            if let Some(DirEntry::File(p, _)) = self.entries.get(i) {
+                                if let Some(m) = TrackMetadata::from_path(p) {
+                                    remaining_songs.push(m);
+                                }
+                            }
+                        }
+
+                        self.queue.add(metadata.clone(), false);
+                        self.queue.add_multiple(remaining_songs, false);
+
+                        if let Some(queued) = self.queue.current() {
+                            let _ = self
+                                .player
+                                .play(&queued.track.path, Some(queued.track.duration));
                         }
                     }
                 }
@@ -191,9 +207,11 @@ impl App {
     pub fn play_selected_track(&mut self) {
         if let Some(DirEntry::File(path, _)) = self.entries.get(self.selected_index).cloned() {
             if let Some(metadata) = TrackMetadata::from_path(&path) {
-                self.queue.add(metadata);
-                if let Some(track) = self.queue.current() {
-                    let _ = self.player.play(&track.path, Some(track.duration));
+                self.queue.add(metadata, true);
+                if let Some(queued) = self.queue.current() {
+                    let _ = self
+                        .player
+                        .play(&queued.track.path, Some(queued.track.duration));
                 }
             }
         }
@@ -209,7 +227,7 @@ impl App {
     pub fn add_to_queue(&mut self) {
         if let Some(DirEntry::File(path, _)) = self.entries.get(self.selected_index) {
             if let Some(metadata) = TrackMetadata::from_path(path) {
-                self.queue.add(metadata);
+                self.queue.insert_after_current(metadata);
             }
         }
     }
@@ -220,22 +238,28 @@ impl App {
         } else if self.player.is_paused() {
             self.player.resume();
         } else if !self.queue.is_empty() {
-            if let Some(track) = self.queue.current() {
-                let _ = self.player.play(&track.path, Some(track.duration));
+            if let Some(queued) = self.queue.current() {
+                let _ = self
+                    .player
+                    .play(&queued.track.path, Some(queued.track.duration));
             }
         }
     }
 
     #[allow(dead_code)]
     pub fn play_track(&mut self) {
-        if let Some(track) = self.queue.current() {
-            let _ = self.player.play(&track.path, Some(track.duration));
+        if let Some(queued) = self.queue.current() {
+            let _ = self
+                .player
+                .play(&queued.track.path, Some(queued.track.duration));
         }
     }
 
     pub fn next_track(&mut self) {
-        if let Some(track) = self.queue.next_track() {
-            let _ = self.player.play(&track.path, Some(track.duration));
+        if let Some(queued) = self.queue.next_track() {
+            let _ = self
+                .player
+                .play(&queued.track.path, Some(queued.track.duration));
         }
     }
 
@@ -246,8 +270,10 @@ impl App {
     }
 
     pub fn previous_track(&mut self) {
-        if let Some(track) = self.queue.previous() {
-            let _ = self.player.play(&track.path, Some(track.duration));
+        if let Some(queued) = self.queue.previous() {
+            let _ = self
+                .player
+                .play(&queued.track.path, Some(queued.track.duration));
         }
     }
 
