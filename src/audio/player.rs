@@ -1,29 +1,70 @@
 use log::info;
-use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink};
+use rodio::{Decoder, OutputStream, OutputStreamHandle, PlayError, Sink, StreamError};
 use std::fs::File;
-use std::io::BufReader;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
+use std::io::{self, BufReader};
+use std::path::Path;
 use std::time::{Duration, Instant};
+
+#[derive(Debug)]
+pub enum PlayerError {
+    OutputStream(StreamError),
+    Sink(PlayError),
+    Io(io::Error),
+    Decoder(rodio::decoder::DecoderError),
+}
+
+impl From<io::Error> for PlayerError {
+    fn from(err: io::Error) -> Self {
+        PlayerError::Io(err)
+    }
+}
+
+impl From<rodio::decoder::DecoderError> for PlayerError {
+    fn from(err: rodio::decoder::DecoderError) -> Self {
+        PlayerError::Decoder(err)
+    }
+}
+
+impl From<StreamError> for PlayerError {
+    fn from(err: StreamError) -> Self {
+        PlayerError::OutputStream(err)
+    }
+}
+
+impl From<PlayError> for PlayerError {
+    fn from(err: PlayError) -> Self {
+        PlayerError::Sink(err)
+    }
+}
+
+impl std::fmt::Display for PlayerError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PlayerError::OutputStream(e) => write!(f, "Output stream error: {}", e),
+            PlayerError::Sink(e) => write!(f, "Sink error: {}", e),
+            PlayerError::Io(e) => write!(f, "IO error: {}", e),
+            PlayerError::Decoder(e) => write!(f, "Decoder error: {}", e),
+        }
+    }
+}
+
+impl std::error::Error for PlayerError {}
 
 pub struct AudioPlayer {
     _stream: OutputStream,
     _stream_handle: OutputStreamHandle,
     sink: Sink,
-    current_track: Option<PathBuf>,
+    current_track: Option<std::path::PathBuf>,
     current_duration: Option<Duration>,
     playback_start: Option<Instant>,
     pause_start_time: Option<Instant>,
     total_paused_duration: Duration,
-    is_paused: Arc<AtomicBool>,
     has_played: bool,
 }
 
 impl AudioPlayer {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let (stream, stream_handle) = OutputStream::try_default()
-            .map_err(|e| format!("Failed to get audio output: {}", e))?;
+    pub fn new() -> Result<Self, PlayerError> {
+        let (stream, stream_handle) = OutputStream::try_default()?;
         let sink = Sink::try_new(&stream_handle)?;
 
         Ok(Self {
@@ -35,16 +76,11 @@ impl AudioPlayer {
             playback_start: None,
             pause_start_time: None,
             total_paused_duration: Duration::ZERO,
-            is_paused: Arc::new(AtomicBool::new(false)),
             has_played: false,
         })
     }
 
-    pub fn play(
-        &mut self,
-        path: &PathBuf,
-        duration: Option<Duration>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn play(&mut self, path: &Path, duration: Option<Duration>) -> Result<(), PlayerError> {
         info!("Playing: {:?}", path);
 
         self.stop();
@@ -53,7 +89,7 @@ impl AudioPlayer {
         let source = Decoder::new(BufReader::new(file))?;
 
         self.sink.append(source);
-        self.current_track = Some(path.clone());
+        self.current_track = Some(path.to_path_buf());
         self.current_duration = duration;
         self.playback_start = Some(Instant::now());
         self.pause_start_time = None;
@@ -68,7 +104,6 @@ impl AudioPlayer {
             self.pause_start_time = Some(Instant::now());
         }
         self.sink.pause();
-        self.is_paused.store(true, Ordering::SeqCst);
     }
 
     pub fn resume(&mut self) {
@@ -78,11 +113,16 @@ impl AudioPlayer {
             self.pause_start_time = None;
         }
         self.sink.play();
-        self.is_paused.store(false, Ordering::SeqCst);
     }
 
-    pub fn stop(&self) {
+    pub fn stop(&mut self) {
         self.sink.stop();
+        self.playback_start = None;
+        self.pause_start_time = None;
+        self.total_paused_duration = Duration::ZERO;
+        self.current_track = None;
+        self.current_duration = None;
+        self.has_played = false;
     }
 
     pub fn is_playing(&self) -> bool {
@@ -98,7 +138,7 @@ impl AudioPlayer {
     }
 
     #[allow(dead_code)]
-    pub fn current_track(&self) -> Option<&PathBuf> {
+    pub fn current_track(&self) -> Option<&std::path::PathBuf> {
         self.current_track.as_ref()
     }
 
@@ -127,16 +167,6 @@ impl AudioPlayer {
 
     pub fn duration(&self) -> Option<Duration> {
         self.current_duration
-    }
-
-    #[allow(dead_code)]
-    pub fn seek_forward(&mut self, _duration: Duration) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub fn seek_backward(&mut self, _duration: Duration) -> Result<(), Box<dyn std::error::Error>> {
-        Ok(())
     }
 
     #[allow(dead_code)]

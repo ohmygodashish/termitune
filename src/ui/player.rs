@@ -10,8 +10,8 @@ pub fn render_player(app: &App, frame: &mut Frame, area: Rect) {
 
     let current_track = app.queue.current();
 
-    let title = if let Some(track) = current_track {
-        format!("{} - {}", track.artist, track.title)
+    let title = if let Some(queued) = current_track {
+        format!("{} - {}", queued.track.artist, queued.track.title)
     } else {
         "No track playing".to_string()
     };
@@ -30,31 +30,7 @@ pub fn render_player(app: &App, frame: &mut Frame, area: Rect) {
     let elapsed = app.player.elapsed_time();
     let duration = app.player.duration();
 
-    let progress_bar = if let (Some(elapsed), Some(total)) = (elapsed, duration) {
-        if total.as_secs() > 0 {
-            let elapsed_capped = if elapsed > total { total } else { elapsed };
-            let _percent =
-                ((elapsed_capped.as_secs() as f64 / total.as_secs() as f64) * 100.0) as u16;
-            let elapsed_str = format_time(elapsed_capped);
-            let total_str = format_time(total);
-            format!("[{} / {}]", elapsed_str, total_str)
-        } else {
-            "[00:00 / 00:00]".to_string()
-        }
-    } else {
-        "[--:-- / --:--]".to_string()
-    };
-
-    let progress_percent = if let (Some(elapsed), Some(total)) = (elapsed, duration) {
-        if total.as_secs() > 0 {
-            let elapsed_capped = if elapsed > total { total } else { elapsed };
-            ((elapsed_capped.as_secs() as f64 / total.as_secs() as f64) * 100.0).min(100.0) as u16
-        } else {
-            0
-        }
-    } else {
-        0
-    };
+    let (progress_bar, progress_percent) = calculate_progress(elapsed, duration);
 
     let paragraph = Paragraph::new(vec![
         Line::from(title),
@@ -82,7 +58,7 @@ pub fn render_player(app: &App, frame: &mut Frame, area: Rect) {
     frame.render_widget(volume_text, volume_area);
 
     let quit_padding = 2;
-    let quit_hint_width = 19; // "Press 'q' to quit" is 18 chars
+    let quit_hint_width = 19;
     let quit_hint_area = Rect::new(
         area.x + area.width.saturating_sub(quit_hint_width + quit_padding),
         area.y + 7,
@@ -92,6 +68,21 @@ pub fn render_player(app: &App, frame: &mut Frame, area: Rect) {
     let quit_hint =
         Paragraph::new("Press 'q' to quit").alignment(ratatui::layout::Alignment::Right);
     frame.render_widget(quit_hint, quit_hint_area);
+}
+
+fn calculate_progress(elapsed: Option<Duration>, duration: Option<Duration>) -> (String, u16) {
+    match (elapsed, duration) {
+        (Some(elapsed), Some(total)) if total.as_secs() > 0 => {
+            let elapsed_capped = if elapsed > total { total } else { elapsed };
+            let percent = ((elapsed_capped.as_secs() as f64 / total.as_secs() as f64) * 100.0)
+                .min(100.0) as u16;
+            let progress_bar =
+                format!("[{} / {}]", format_time(elapsed_capped), format_time(total));
+            (progress_bar, percent)
+        }
+        (Some(_), Some(_)) => ("[00:00 / 00:00]".to_string(), 0),
+        _ => ("[--:-- / --:--]".to_string(), 0),
+    }
 }
 
 fn format_time(duration: Duration) -> String {

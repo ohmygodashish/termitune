@@ -10,16 +10,15 @@ use crossterm::{
 };
 use ratatui::prelude::Rect;
 use ratatui::{backend::CrosstermBackend, Terminal};
-use std::error::Error;
 use std::time::Duration;
 
 use crate::input::handler::KeyAction;
-use crate::ui::app::App;
+use crate::ui::app::{App, AppError};
 use crate::ui::browser::render_browser;
 use crate::ui::player::render_player;
 use crate::ui::queue_panel::render_queue;
 
-pub fn run() -> Result<(), Box<dyn Error>> {
+pub fn run() -> Result<(), AppError> {
     enable_raw_mode()?;
     let mut stdout = std::io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -49,7 +48,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
 fn run_app<B: ratatui::backend::Backend>(
     terminal: &mut Terminal<B>,
     app: &mut App,
-) -> Result<(), Box<dyn Error>> {
+) -> Result<(), AppError> {
     loop {
         terminal.draw(|f| {
             let size = f.area();
@@ -77,17 +76,25 @@ fn run_app<B: ratatui::backend::Backend>(
                         KeyAction::Up => app.navigate_up(),
                         KeyAction::Down => app.navigate_down(),
                         KeyAction::Left => {
-                            let _ = app.go_back();
+                            if let Err(e) = app.go_back() {
+                                log::warn!("Failed to go back: {}", e);
+                            }
                         }
                         KeyAction::Right => {
-                            let _ = app.handle_enter_key();
+                            if let Err(e) = app.handle_enter_key() {
+                                log::warn!("Failed to handle enter: {}", e);
+                            }
                         }
                         KeyAction::Space => app.add_to_queue(),
                         KeyAction::Enter => {
-                            let _ = app.handle_enter_key();
+                            if let Err(e) = app.handle_enter_key() {
+                                log::warn!("Failed to handle enter: {}", e);
+                            }
                         }
                         KeyAction::Backspace => {
-                            let _ = app.go_back();
+                            if let Err(e) = app.go_back() {
+                                log::warn!("Failed to go back: {}", e);
+                            }
                         }
                         KeyAction::PlayPause => app.toggle_playback(),
                         KeyAction::Next => app.next_track(),

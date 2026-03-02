@@ -14,7 +14,6 @@ crossterm = "0.28"
 rodio = "0.19"
 lofty = "0.21"
 dirs = "5"
-walkdir = "2"
 log = "0.4"
 env_logger = "0.11"
 

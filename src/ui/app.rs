@@ -1,22 +1,40 @@
 use crate::audio::metadata::{is_audio_file, TrackMetadata};
-use crate::audio::player::AudioPlayer;
+use crate::audio::player::{AudioPlayer, PlayerError};
 use crate::input::handler::InputHandler;
 use crate::queue::manager::QueueManager;
-use std::path::PathBuf;
-use walkdir::WalkDir;
+use std::fs::{self, ReadDir};
+use std::io;
+use std::path::{Path, PathBuf};
 
-#[allow(dead_code)]
-pub struct App {
-    pub current_dir: PathBuf,
-    pub entries: Vec<DirEntry>,
-    pub selected_index: usize,
-    pub queue: QueueManager,
-    pub player: AudioPlayer,
-    pub input_handler: InputHandler,
-    pub queue_scroll: usize,
-    pub search_query: String,
-    pub is_searching: bool,
-    pub browser_scroll: usize,
+#[derive(Debug)]
+pub enum AppError {
+    Io(io::Error),
+    NoHomeDirectory,
+    AudioPlayer(PlayerError),
+}
+
+impl From<io::Error> for AppError {
+    fn from(err: io::Error) -> Self {
+        AppError::Io(err)
+    }
+}
+
+impl From<PlayerError> for AppError {
+    fn from(err: PlayerError) -> Self {
+        AppError::AudioPlayer(err)
+    }
+}
+
+impl std::error::Error for AppError {}
+
+impl std::fmt::Display for AppError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AppError::Io(e) => write!(f, "IO error: {}", e),
+            AppError::NoHomeDirectory => write!(f, "Could not determine home directory"),
+            AppError::AudioPlayer(e) => write!(f, "Audio player error: {}", e),
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -25,9 +43,24 @@ pub enum DirEntry {
     File(PathBuf, Option<TrackMetadata>),
 }
 
+pub struct App {
+    pub current_dir: PathBuf,
+    pub entries: Vec<DirEntry>,
+    pub selected_index: usize,
+    pub queue: QueueManager,
+    pub player: AudioPlayer,
+    pub input_handler: InputHandler,
+    pub queue_scroll: usize,
+    #[allow(dead_code)]
+    pub search_query: String,
+    #[allow(dead_code)]
+    pub is_searching: bool,
+    pub browser_scroll: usize,
+}
+
 impl App {
-    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
-        let current_dir = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
+    pub fn new() -> Result<Self, AppError> {
+        let current_dir = dirs::home_dir().ok_or(AppError::NoHomeDirectory)?;
 
         let mut app = Self {
             current_dir: current_dir.clone(),
@@ -46,24 +79,26 @@ impl App {
         Ok(app)
     }
 
-    pub fn load_directory(&mut self, path: &PathBuf) -> Result<(), Box<dyn std::error::Error>> {
+    pub fn load_directory(&mut self, path: &Path) -> Result<(), AppError> {
         self.entries.clear();
         self.selected_index = 0;
         self.browser_scroll = 0;
-        self.current_dir = path.clone();
+        self.current_dir = path.to_path_buf();
 
         let mut dirs: Vec<DirEntry> = Vec::new();
         let mut files: Vec<DirEntry> = Vec::new();
 
-        for entry in WalkDir::new(path).max_depth(1).min_depth(1) {
-            let entry = entry?;
-            let path = entry.path().to_path_buf();
+        let dir_entries: ReadDir = fs::read_dir(path)?;
 
-            if path.is_dir() {
-                dirs.push(DirEntry::Directory(path));
-            } else if is_audio_file(&path) {
-                let metadata = TrackMetadata::from_path(&path);
-                files.push(DirEntry::File(path, metadata));
+        for entry in dir_entries {
+            let entry = entry?;
+            let file_path = entry.path();
+
+            if file_path.is_dir() {
+                dirs.push(DirEntry::Directory(file_path));
+            } else if is_audio_file(&file_path) {
+                let metadata = TrackMetadata::from_path(&file_path);
+                files.push(DirEntry::File(file_path, metadata));
             }
         }
 
@@ -124,19 +159,15 @@ impl App {
     }
 
     #[allow(dead_code)]
-    pub fn enter_directory(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let entry = self.entries.get(self.selected_index).cloned();
-        if let Some(entry) = entry {
-            if let DirEntry::Directory(path) = entry {
-                self.load_directory(&path)?;
-            }
+    pub fn enter_directory(&mut self) -> Result<(), AppError> {
+        if let Some(DirEntry::Directory(path)) = self.entries.get(self.selected_index).cloned() {
+            self.load_directory(&path)?;
         }
         Ok(())
     }
 
-    pub fn handle_enter_key(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        let entry = self.entries.get(self.selected_index).cloned();
-        if let Some(entry) = entry {
+    pub fn handle_enter_key(&mut self) -> Result<(), AppError> {
+        if let Some(entry) = self.entries.get(self.selected_index).cloned() {
             match entry {
                 DirEntry::Directory(path) => {
                     self.load_directory(&path)?;
@@ -145,9 +176,25 @@ impl App {
                     if let Some(metadata) = TrackMetadata::from_path(&path) {
                         self.player.stop();
                         self.queue.clear();
-                        self.queue.add(metadata);
-                        if let Some(track) = self.queue.current() {
-                            let _ = self.player.play(&track.path, Some(track.duration));
+
+                        let selected_idx = self.selected_index;
+
+                        let mut remaining_songs: Vec<TrackMetadata> = Vec::new();
+                        for i in (selected_idx + 1)..self.entries.len() {
+                            if let Some(DirEntry::File(p, _)) = self.entries.get(i) {
+                                if let Some(m) = TrackMetadata::from_path(p) {
+                                    remaining_songs.push(m);
+                                }
+                            }
+                        }
+
+                        self.queue.add(metadata.clone(), false);
+                        self.queue.add_multiple(remaining_songs, false);
+
+                        if let Some(queued) = self.queue.current() {
+                            let _ = self
+                                .player
+                                .play(&queued.track.path, Some(queued.track.duration));
                         }
                     }
                 }
@@ -158,35 +205,29 @@ impl App {
 
     #[allow(dead_code)]
     pub fn play_selected_track(&mut self) {
-        let entry = self.entries.get(self.selected_index).cloned();
-        if let Some(entry) = entry {
-            if let DirEntry::File(path, _) = entry {
-                if let Some(metadata) = TrackMetadata::from_path(&path) {
-                    self.queue.add(metadata);
-                    if let Some(track) = self.queue.current() {
-                        let _ = self.player.play(&track.path, Some(track.duration));
-                    }
+        if let Some(DirEntry::File(path, _)) = self.entries.get(self.selected_index).cloned() {
+            if let Some(metadata) = TrackMetadata::from_path(&path) {
+                self.queue.add(metadata, true);
+                if let Some(queued) = self.queue.current() {
+                    let _ = self
+                        .player
+                        .play(&queued.track.path, Some(queued.track.duration));
                 }
             }
         }
     }
 
-    pub fn go_back(&mut self) -> Result<(), Box<dyn std::error::Error>> {
-        if let Some(parent) = self.current_dir.parent() {
-            self.load_directory(&parent.to_path_buf())?;
+    pub fn go_back(&mut self) -> Result<(), AppError> {
+        if let Some(parent) = self.current_dir.parent().map(|p| p.to_path_buf()) {
+            self.load_directory(&parent)?;
         }
         Ok(())
     }
 
     pub fn add_to_queue(&mut self) {
-        if let Some(entry) = self.entries.get(self.selected_index) {
-            match entry {
-                DirEntry::File(path, _) => {
-                    if let Some(metadata) = TrackMetadata::from_path(path) {
-                        self.queue.add(metadata);
-                    }
-                }
-                _ => {}
+        if let Some(DirEntry::File(path, _)) = self.entries.get(self.selected_index) {
+            if let Some(metadata) = TrackMetadata::from_path(path) {
+                self.queue.insert_after_current(metadata);
             }
         }
     }
@@ -197,22 +238,28 @@ impl App {
         } else if self.player.is_paused() {
             self.player.resume();
         } else if !self.queue.is_empty() {
-            if let Some(track) = self.queue.current() {
-                let _ = self.player.play(&track.path, Some(track.duration));
+            if let Some(queued) = self.queue.current() {
+                let _ = self
+                    .player
+                    .play(&queued.track.path, Some(queued.track.duration));
             }
         }
     }
 
     #[allow(dead_code)]
     pub fn play_track(&mut self) {
-        if let Some(track) = self.queue.current() {
-            let _ = self.player.play(&track.path, Some(track.duration));
+        if let Some(queued) = self.queue.current() {
+            let _ = self
+                .player
+                .play(&queued.track.path, Some(queued.track.duration));
         }
     }
 
     pub fn next_track(&mut self) {
-        if let Some(track) = self.queue.next() {
-            let _ = self.player.play(&track.path, Some(track.duration));
+        if let Some(queued) = self.queue.next_track() {
+            let _ = self
+                .player
+                .play(&queued.track.path, Some(queued.track.duration));
         }
     }
 
@@ -223,8 +270,10 @@ impl App {
     }
 
     pub fn previous_track(&mut self) {
-        if let Some(track) = self.queue.previous() {
-            let _ = self.player.play(&track.path, Some(track.duration));
+        if let Some(queued) = self.queue.previous() {
+            let _ = self
+                .player
+                .play(&queued.track.path, Some(queued.track.duration));
         }
     }
 

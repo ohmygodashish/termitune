@@ -10,17 +10,29 @@ pub fn render_queue(app: &App, frame: &mut Frame, area: Rect) {
     let items: Vec<ListItem> = (0..app.queue.len())
         .enumerate()
         .map(|(i, _)| {
-            if let Some(track) = app.queue.get_track(i) {
+            if let Some(queued) = app.queue.get_track(i) {
                 let current_marker = if Some(i) == app.queue.current_index() {
                     "▶ "
                 } else {
                     "  "
                 };
 
-                ListItem::new(format!(
+                let content = format!(
                     "{}{} - {}",
-                    current_marker, track.artist, track.title
-                ))
+                    current_marker, queued.track.artist, queued.track.title
+                );
+
+                let is_current = Some(i) == app.queue.current_index();
+                let is_manual = queued.manually_added;
+
+                if is_current {
+                    ListItem::new(content)
+                        .style(Style::default().bg(Color::LightBlue).fg(Color::Black))
+                } else if is_manual {
+                    ListItem::new(content).style(Style::default().fg(Color::Yellow))
+                } else {
+                    ListItem::new(content)
+                }
             } else {
                 ListItem::new("")
             }
