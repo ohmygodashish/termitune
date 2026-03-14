@@ -1370,6 +1370,7 @@ dependencies = [
  "log",
  "ratatui",
  "rodio",
+ "walkdir",
 ]
 
 [[package]]
