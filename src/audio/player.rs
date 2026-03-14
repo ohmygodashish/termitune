@@ -84,11 +84,13 @@ impl AudioPlayer {
         info!("Playing: {:?}", path);
 
         self.stop();
+        self.sink = Sink::try_new(&self._stream_handle)?;
 
         let file = File::open(path)?;
         let source = Decoder::new(BufReader::new(file))?;
 
         self.sink.append(source);
+        self.sink.play();
         self.current_track = Some(path.to_path_buf());
         self.current_duration = duration;
         self.playback_start = Some(Instant::now());
