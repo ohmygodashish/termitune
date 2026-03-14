@@ -57,12 +57,22 @@ pub fn render_player(app: &App, frame: &mut Frame, area: Rect) {
         .alignment(ratatui::layout::Alignment::Left);
     frame.render_widget(volume_text, volume_area);
 
-    let quit_padding = 2;
-    let quit_hint_width = 19;
+    let hint_padding = 2;
+    let hint_width = 25;
+    let search_hint_area = Rect::new(
+        area.x + area.width.saturating_sub(hint_width + hint_padding),
+        area.y + 6,
+        hint_width,
+        1,
+    );
+    let search_hint =
+        Paragraph::new("Press '/' to fuzzy search").alignment(ratatui::layout::Alignment::Right);
+    frame.render_widget(search_hint, search_hint_area);
+
     let quit_hint_area = Rect::new(
-        area.x + area.width.saturating_sub(quit_hint_width + quit_padding),
+        area.x + area.width.saturating_sub(hint_width + hint_padding),
         area.y + 7,
-        quit_hint_width,
+        hint_width,
         1,
     );
     let quit_hint =
