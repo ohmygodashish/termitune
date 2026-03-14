@@ -69,6 +69,11 @@ impl QueueManager {
 
         self.last_manual_insert_index = Some(insert_pos);
 
+        if self.current_index.is_none() {
+            self.current_index = Some(0);
+            return;
+        }
+
         if let Some(current) = self.current_index {
             if insert_pos <= current {
                 self.current_index = Some(current + 1);
