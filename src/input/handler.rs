@@ -34,7 +34,10 @@ impl InputHandler {
         } = event;
 
         if modifiers.contains(KeyModifiers::CONTROL) {
-            return KeyAction::None;
+            return match code {
+                KeyCode::Char('f') | KeyCode::Char('F') => KeyAction::Search,
+                _ => KeyAction::None,
+            };
         }
 
         match code {
@@ -53,7 +56,7 @@ impl InputHandler {
             KeyCode::Char('-') => KeyAction::VolumeDown,
             KeyCode::Char('>') => KeyAction::SeekForward,
             KeyCode::Char('<') => KeyAction::SeekBackward,
-            KeyCode::Char('/') => KeyAction::Search,
+            KeyCode::Char('/') | KeyCode::Char('?') => KeyAction::Search,
             _ => KeyAction::None,
         }
     }
