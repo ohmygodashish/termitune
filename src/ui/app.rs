@@ -544,15 +544,6 @@ impl App {
     }
 
     pub fn next_track(&mut self) {
-        if !self.player.is_playing() && !self.player.is_paused() {
-            if let Some(queued) = self.queue.current() {
-                let _ = self
-                    .player
-                    .play(&queued.track.path, Some(queued.track.duration));
-                return;
-            }
-        }
-
         if let Some(queued) = self.queue.next_track() {
             let _ = self
                 .player
