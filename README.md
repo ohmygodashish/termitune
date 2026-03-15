@@ -10,6 +10,8 @@ A fast, lightweight, keyboard-driven terminal music player in Rust for unix syst
 - **Playback Controls** - Play/pause, next/previous track
 - **Volume Control** - Adjust volume with +/- keys
 - **Progress Bar** - Track progress with time display
+- **Automatic Queue Progression** - Automatically advances to next track when current finishes
+- **Persistent Volume** - Volume settings persist across track changes
 
 ## Installation
 
