@@ -1,16 +1,16 @@
-use std::error::Error;
 use log::info;
+use std::error::Error;
 
-mod ui;
 mod audio;
-mod queue;
 mod input;
+mod queue;
+mod ui;
 
 fn main() -> Result<(), Box<dyn Error>> {
     env_logger::init();
     info!("Starting termitune");
-    
+
     ui::run()?;
-    
+
     Ok(())
 }

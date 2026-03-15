@@ -1,4 +1,4 @@
-pub mod ui;
 pub mod audio;
-pub mod queue;
 pub mod input;
+pub mod queue;
+pub mod ui;

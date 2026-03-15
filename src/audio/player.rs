@@ -83,12 +83,16 @@ impl AudioPlayer {
     pub fn play(&mut self, path: &Path, duration: Option<Duration>) -> Result<(), PlayerError> {
         info!("Playing: {:?}", path);
 
+        let saved_volume = self.sink.volume();
         self.stop();
+        self.sink = Sink::try_new(&self._stream_handle)?;
+        self.sink.set_volume(saved_volume);
 
         let file = File::open(path)?;
         let source = Decoder::new(BufReader::new(file))?;
 
         self.sink.append(source);
+        self.sink.play();
         self.current_track = Some(path.to_path_buf());
         self.current_duration = duration;
         self.playback_start = Some(Instant::now());

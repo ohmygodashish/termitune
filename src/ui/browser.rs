@@ -1,4 +1,4 @@
-use crate::ui::app::{App, DirEntry};
+use crate::ui::app::App;
 use ratatui::prelude::*;
 use ratatui::widgets::{Block, List, ListItem, ListState};
 
@@ -12,29 +12,7 @@ pub fn render_browser(app: &App, frame: &mut Frame, area: Rect) {
         .iter()
         .enumerate()
         .map(|(i, entry)| {
-            let content = match entry {
-                DirEntry::Directory(path) => {
-                    format!(
-                        "📁 {}",
-                        path.file_name().unwrap_or_default().to_string_lossy()
-                    )
-                }
-                DirEntry::File(path, metadata) => {
-                    if let Some(meta) = metadata {
-                        format!(
-                            "🎵 {} - {} [{}]",
-                            meta.title,
-                            meta.artist,
-                            meta.format_duration()
-                        )
-                    } else {
-                        format!(
-                            "🎵 {}",
-                            path.file_name().unwrap_or_default().to_string_lossy()
-                        )
-                    }
-                }
-            };
+            let content = entry.display_text();
 
             if i == app.selected_index {
                 ListItem::new(content).style(Style::default().bg(Color::LightBlue).fg(Color::Black))

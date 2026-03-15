@@ -2,9 +2,13 @@ pub mod app;
 pub mod browser;
 pub mod player;
 pub mod queue_panel;
+pub mod search;
 
 use crossterm::{
-    event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyEventKind},
+    event::{
+        self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyEventKind,
+        KeyModifiers,
+    },
     execute,
     terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
 };
@@ -17,6 +21,7 @@ use crate::ui::app::{App, AppError};
 use crate::ui::browser::render_browser;
 use crate::ui::player::render_player;
 use crate::ui::queue_panel::render_queue;
+use crate::ui::search::render_search;
 
 pub fn run() -> Result<(), AppError> {
     enable_raw_mode()?;
@@ -64,11 +69,25 @@ fn run_app<B: ratatui::backend::Backend>(
             render_browser(app, f, browser_area);
             render_queue(app, f, queue_area);
             render_player(app, f, player_area);
+
+            if app.search.active {
+                render_search(app, f);
+            }
         })?;
 
         if event::poll(Duration::from_millis(100))? {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
+                    if app.search.active {
+                        handle_search_key(app, key)?;
+                        continue;
+                    }
+
+                    if is_search_trigger(key) {
+                        app.open_search();
+                        continue;
+                    }
+
                     let action = app.input_handler.handle_key_event(key);
 
                     match action {
@@ -103,7 +122,7 @@ fn run_app<B: ratatui::backend::Backend>(
                         KeyAction::VolumeDown => app.volume_down(),
                         KeyAction::SeekForward => {}
                         KeyAction::SeekBackward => {}
-                        KeyAction::Search => {}
+                        KeyAction::Search => app.open_search(),
                         KeyAction::None => {}
                     }
                 }
@@ -114,4 +133,32 @@ fn run_app<B: ratatui::backend::Backend>(
     }
 
     Ok(())
+}
+
+fn handle_search_key(app: &mut App, key: KeyEvent) -> Result<(), AppError> {
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        return Ok(());
+    }
+
+    match key.code {
+        KeyCode::Esc => app.close_search(),
+        KeyCode::Up => app.search_up(),
+        KeyCode::Down => app.search_down(),
+        KeyCode::Enter => app.activate_selected_search_result()?,
+        KeyCode::Char('*') => app.toggle_search_scope(),
+        KeyCode::Char(' ') => app.append_search_char(' '),
+        KeyCode::Backspace => app.pop_search_char(),
+        KeyCode::Char(ch) => app.append_search_char(ch),
+        _ => {}
+    }
+
+    Ok(())
+}
+
+fn is_search_trigger(key: KeyEvent) -> bool {
+    if key.modifiers.contains(KeyModifiers::CONTROL) {
+        return matches!(key.code, KeyCode::Char('f') | KeyCode::Char('F'));
+    }
+
+    matches!(key.code, KeyCode::Char('/') | KeyCode::Char('?'))
 }
